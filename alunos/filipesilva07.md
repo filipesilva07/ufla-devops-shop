@@ -37,7 +37,7 @@ A métrica mais problemática era a frequência de implantação, principalmente
 <!--
 COMO USAR ESTE MODELO
 
-  1. Copie este arquivo para alunos/<seu-usuario-github>.md
+  1. Copie este arquivo para alunos/<filipesilva07>.md
      (o nome do arquivo precisa ser exatamente o seu usuario do GitHub)
   2. Substitua tudo o que esta entre < >, inclusive os proprios sinais
   3. Apague este comentario e o bloco de instrucoes do diagnostico, se quiser
