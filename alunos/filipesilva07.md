@@ -28,18 +28,4 @@ Não tenho um projeto de software recente que tenha sido efetivamente colocado e
 
 A métrica mais problemática era a frequência de implantação, principalmente porque eu não possuía um processo estruturado de desenvolvimento, integração e implantação de software. Minha experiência anterior era mais voltada à compreensão e utilização de sistemas do que ao desenvolvimento e disponibilização de aplicações para usuários. Por isso, não havia um fluxo de entrega contínua nem dados suficientes para acompanhar as métricas DORA.
 
----
 
-> Guarde este arquivo. Na **semana 15** voce vai reler o que escreveu hoje e
-> refazer o mesmo diagnostico sobre a plataforma que tera construido. A
-> diferenca entre os dois textos e, na pratica, o que voce aprendeu no semestre.
-
-<!--
-COMO USAR ESTE MODELO
-
-  1. Copie este arquivo para alunos/<filipesilva07>.md
-     (o nome do arquivo precisa ser exatamente o seu usuario do GitHub)
-  2. Substitua tudo o que esta entre < >, inclusive os proprios sinais
-  3. Apague este comentario e o bloco de instrucoes do diagnostico, se quiser
-  4. NAO altere nem apague este arquivo _modelo.md
--->
