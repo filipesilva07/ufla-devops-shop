@@ -1,58 +1,53 @@
 # Autopsia: GitLab 2017
 
+# Autopsia: GitLab 2017 (31/01/2017)
+
 **Autor:** Filipe Rezende Silva (@filipesilva07)
 
-**Fonte primaria:** GitLab. *Postmortem of database outage of January 31*. 10 fev. 2017.
-https://about.gitlab.com/blog/postmortem-of-database-outage-of-january-31/
+**Fonte primaria:** GitLab. *Postmortem of database outage of January 31*. 10 fev. 2017. https://about.gitlab.com/blog/postmortem-of-database-outage-of-january-31/
 
 **Data de acesso:** 25/08/2026
 
 ## 1. O que aconteceu
 
-Em 31 de janeiro de 2017, o GitLab.com sofreu uma interrupção grave causada pela remoção acidental de dados do banco de dados primário de produção.
+Em 31 de janeiro de 2017, o GitLab.com começou a enfrentar problemas de carga no banco de dados e a replicação para o servidor secundário parou.
+Durante uma tentativa de reconstruir a replicação, um engenheiro apagou por engano o diretório do banco primário em vez do secundário.
+O erro foi interrompido rapidamente, mas cerca de 300 GB de dados já haviam sido removidos.
+A equipe tentou recuperar os dados pelos backups, mas descobriu que os backups do PostgreSQL estavam falhando e que as notificações dessas falhas não estavam chegando.
+O serviço levou cerca de 18 horas para ser restaurado usando um snapshot antigo, com perda de dados de produção de projetos, comentários e contas.
 
-Antes do incidente principal, o banco estava sofrendo um aumento de carga, associado a spam e a um processo que tentava remover dados de um usuário. Como consequência, a replicação entre o banco primário e o secundário ficou atrasada e acabou parando.
+## 2. Qual das Tres Vias falhou
 
-Na tentativa de reconstruir a replicação, um engenheiro precisava limpar o diretório de dados do banco secundário. Porém, a operação foi executada por engano no servidor primário. O processo foi interrompido rapidamente, mas aproximadamente 300 GB de dados já haviam sido removidos.
+**Segunda Via — Feedback.**
 
-O GitLab.com ficou indisponível por muitas horas e parte dos dados de produção não pôde ser recuperada. A estimativa apresentada pelo GitLab foi de aproximadamente 5.000 projetos, 5.000 comentários e 700 novas contas de usuários afetados. Repositórios Git e wikis não foram perdidos porque estavam armazenados separadamente.
+A Segunda Via busca encurtar o ciclo de feedback e detectar problemas o mais cedo possível. No caso do GitLab, os backups estavam falhando porque o procedimento utilizava uma versão incompatível do PostgreSQL, mas a equipe não sabia disso porque as notificações por e-mail das falhas eram rejeitadas por problemas de DMARC.
 
-## 2. Por que a recuperação falhou
+Isso mostra uma falha de feedback: existia um mecanismo que deveria informar que os backups estavam com problemas, mas ele não produzia um sinal confiável. Se a falha tivesse sido detectada antes do incidente, a equipe poderia ter corrigido o procedimento de backup e testado a recuperação enquanto os dados ainda estavam disponíveis.
 
-O problema mais grave não foi somente o erro humano, mas a combinação desse erro com mecanismos de recuperação que não funcionavam adequadamente.
+## 3. Quais metricas DORA teriam denunciado antes
 
-O GitLab possuía backups periódicos utilizando `pg_dump`, armazenados no Amazon S3. Entretanto, esses backups estavam falhando porque o procedimento utilizava o PostgreSQL 9.2 enquanto o banco de produção utilizava o PostgreSQL 9.6.
+A métrica mais claramente relacionada ao caso é o **Tempo de restauração**. Antes do incidente, a organização não tinha um processo de recuperação confiável e testado regularmente. Quando o banco foi perdido, a restauração levou mais de 18 horas, enquanto uma organização com recuperação madura deveria conseguir voltar ao funcionamento muito mais rapidamente.
 
-Além disso, as notificações sobre a falha dos backups eram enviadas por e-mail, mas esses e-mails estavam sendo rejeitados devido a problemas relacionados ao DMARC. Dessa forma, a equipe não sabia que os backups estavam falhando.
+O mecanismo é direto: uma restauração lenta ou difícil já indicaria uma fragilidade no processo de recuperação antes de um desastre. O próprio relatório mostra que não havia testes regulares do procedimento de backup porque não existia uma pessoa responsável por isso.
 
-Os snapshots de disco do Azure também não estavam habilitados para os servidores de banco de dados. A replicação existente não pôde ser utilizada para recuperação porque o banco secundário também havia sido afetado durante a tentativa de reconstrução.
+Não há evidência suficiente no relatório para afirmar que as outras três métricas DORA — frequência de implantação, lead time para mudanças e taxa de falha em mudanças — já estavam ruins antes do incidente. Por isso, a métrica mais defensável neste caso é o Tempo de restauração.
 
-Outro problema identificado foi a ausência de testes regulares de restauração. O procedimento de backup existia, mas não havia uma pessoa responsável por verificar regularmente se ele realmente poderia ser utilizado para recuperar o banco.
+## 4. Qual pratica do semestre teria evitado -- e em que semana
 
-## 3. Qual foi a causa raiz
+**Métricas e alertas da Segunda Via — semana 8.**
 
-O postmortem utiliza a técnica dos "5 Whys" e separa o incidente em dois problemas: a indisponibilidade do GitLab.com e a demora para restaurá-lo.
+Uma prática de monitoramento dos backups teria detectado automaticamente que o `pg_dump` estava falhando. O relatório mostra que os backups terminavam com erro, mas a equipe não recebia as notificações porque os e-mails eram rejeitados.
 
-A indisponibilidade ocorreu porque o diretório do banco primário foi removido acidentalmente enquanto a equipe tentava reconstruir o banco secundário. A situação foi precedida por problemas de carga e replicação e foi agravada pela existência de procedimentos manuais de recuperação que não eram suficientemente documentados ou automatizados.
+Com métricas e alertas confiáveis, a falha poderia ter sido identificada antes do incidente e o procedimento de backup poderia ter sido corrigido e testado. Essa prática teria criado exatamente o feedback que faltou no caso: um sinal automático de que a recuperação não estava realmente disponível.
 
-A demora na recuperação ocorreu porque os mecanismos normais de backup não estavam funcionando. O backup com `pg_dump` falhava silenciosamente, os snapshots do banco não estavam disponíveis e o servidor secundário também não podia ser utilizado.
+## 5. A cultura do relatorio: generativa ou patologica?
 
-Assim, um erro operacional relativamente simples acabou provocando um impacto muito maior porque a infraestrutura não possuía mecanismos de recuperação suficientemente confiáveis.
+**Generativa.**
 
-## 4. O que poderia ter sido melhor
+O relatório demonstra uma postura de aprendizado e melhoria do sistema em vez de simplesmente culpar o engenheiro que cometeu o erro. O próprio GitLab reconhece que o problema estava relacionado aos procedimentos, à falta de automação, à ausência de testes de recuperação e à falta de monitoramento.
 
-O principal aprendizado é que backup não significa apenas gerar arquivos de backup. É necessário monitorar sua execução e testar regularmente sua restauração.
+Um trecho que sustenta essa classificação é:
 
-O processo deveria ter identificado automaticamente a falha do `pg_dump` e alertado a equipe de forma confiável. Também seria importante possuir cópias independentes dos dados, snapshots dos servidores de banco e procedimentos de recuperação automatizados e testados.
+"An ideal environment is one in which you can make mistakes but easily and quickly recover from them with minimal to no impact."
 
-A operação de produção também deveria depender menos de ações manuais. A documentação e os runbooks precisavam deixar mais claro em qual servidor uma operação estava sendo executada, reduzindo a possibilidade de executar comandos destrutivos no ambiente errado.
-
-## 5. Relação com DevOps
-
-O incidente demonstra que DevOps não se resume à automação de deploys. Práticas de DevOps também devem estar presentes na operação, observabilidade, recuperação e confiabilidade dos sistemas.
-
-Nesse caso, automação poderia ter reduzido o risco de erro humano durante a reconstrução da replicação. Monitoramento poderia ter identificado que os backups estavam falhando. Testes automatizados de restauração poderiam ter revelado o problema antes de um incidente real.
-
-O caso também demonstra a importância de definir responsabilidades. O próprio postmortem identificou a necessidade de atribuir um responsável pela durabilidade dos dados e de automatizar os testes de recuperação.
-
-A principal lição para mim é que uma infraestrutura confiável não é aquela em que erros nunca acontecem, mas aquela em que os erros podem ser detectados rapidamente e o sistema consegue se recuperar deles com pouco impacto.
+Esse trecho mostra uma visão compatível com uma cultura generativa: o objetivo não é criar um ambiente em que ninguém erre, mas construir um sistema capaz de detectar erros, aprender com eles e se recuperar rapidamente. O relatório também transforma o incidente em ações concretas, como monitoramento dos backups, testes automatizados de recuperação e definição de responsabilidade pela durabilidade dos dados.
