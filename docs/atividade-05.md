@@ -26,3 +26,21 @@ ghcr.io/filipesilva07/ufla-shop:1.0.0
 ## Healthchecks
 O depends_on simples controla apenas a ordem de inicialização, sem garantir que os serviços estejam prontos.
 Com condition: service_healthy, a API espera PostgreSQL e Redis ficarem saudáveis antes de iniciar.
+
+## Evidências da reinicialização
+
+Comandos executados:
+
+- `docker compose down`
+- `docker compose up -d --wait`
+- `curl -s 'http://localhost/api/busca?q=persistencia'`
+
+Os quatro serviços voltaram a funcionar e ficaram saudáveis.
+A busca retornou `total: 1`, confirmando que o produto de ID 13
+continuou no PostgreSQL após a remoção e recriação dos contêineres.
+
+## Resultado do teste HTTP
+
+- GET `/`: HTTP 200
+- GET `/api/info`: banco `postgresql` e cache `redis`
+- POST `/api/produtos`: produto criado com ID 13
